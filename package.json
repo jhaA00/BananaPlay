@@ -1,0 +1,22 @@
+{
+  "name": "banana-puzzle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A full-stack banana puzzle game with auth, gameplay and a leaderboard.",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "db:setup": "npm run db:setup -w server",
+    "db:seed": "npm run db:seed -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
