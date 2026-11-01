@@ -859,9 +859,10 @@ export async function useHint(userId, roundId) {
 
     if (!round.hint_used) {
       await client.query(`UPDATE rounds SET hint_used = true WHERE id = $1`, [roundId]);
-      await client.query(`UPDATE games SET hints_used = hints_used + 1 WHERE id = $1`, [
-        round.game_id,
-      ]);
+      const { rows: gameRows } = await client.query(
+        `UPDATE games SET hints_used = hints_used + 1 WHERE id = $1 RETURNING *`,
+        [round.game_id],
+      );
       round.hint_used = true;
       await logEvent(client, {
         userId,
@@ -869,9 +870,13 @@ export async function useHint(userId, roundId) {
         type: 'hint_requested',
         payload: { roundId },
       });
+      return { expired: false, gameOver: false, round, game: gameRows[0] };
     }
 
-    return { expired: false, gameOver: false, round };
+    const { rows: gameRows } = await client.query(`SELECT * FROM games WHERE id = $1`, [
+      round.game_id,
+    ]);
+    return { expired: false, gameOver: false, round, game: gameRows[0] };
   });
 
   return {

@@ -2,15 +2,15 @@ import { Link } from 'react-router-dom';
 
 export default function NotFound() {
   return (
-    <div className="empty-page">
-      <div className="empty-emoji" aria-hidden="true">
-        🙈
-      </div>
-      <h1>This page slipped away</h1>
-      <p>The page you were looking for does not exist. Let&apos;s get you back to the game.</p>
-      <Link to="/play" className="btn btn-primary btn-inline">
-        Back to the puzzle
-      </Link>
+    <div className="ls-page">
+      <section className="ls-panel ls-empty-panel">
+        <p className="ls-kicker">Signal lost</p>
+        <h1>This page does not exist</h1>
+        <p>The coordinates are wrong. Nothing is transmitting from this location.</p>
+        <Link to="/dashboard" className="ls-btn ls-btn-amber">
+          Return to the dashboard
+        </Link>
+      </section>
     </div>
   );
 }
