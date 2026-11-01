@@ -618,6 +618,7 @@ export async function interact(userId, missionNumber, objectiveKey) {
     round: serializeRound(result.round),
     lifeLost: result.lifeLost,
     gameOver: result.gameOver,
+    game: result.game ? publicGame(result.game) : null,
     state: await loadGameState(userId),
   };
 }
@@ -876,6 +877,7 @@ export async function useHint(userId, roundId) {
   return {
     expired: result.expired,
     gameOver: result.gameOver,
+    game: result.game ? publicGame(result.game) : null,
     round: result.round ? serializeRound(result.round) : null,
     state: await loadGameState(userId),
   };
