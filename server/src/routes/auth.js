@@ -14,6 +14,7 @@ router.post(
     const username = String(req.body?.username ?? '').trim();
     const email = String(req.body?.email ?? '').trim().toLowerCase();
     const password = String(req.body?.password ?? '');
+    const confirmPassword = req.body?.confirmPassword;
 
     if (!USERNAME_PATTERN.test(username)) {
       throw new ApiError(
@@ -24,8 +25,16 @@ router.post(
     if (!EMAIL_PATTERN.test(email)) {
       throw new ApiError(400, 'Please enter a valid email address.');
     }
-    if (password.length < 6) {
-      throw new ApiError(400, 'Password must be at least 6 characters long.');
+    if (password.length < 8) {
+      throw new ApiError(400, 'Password must be at least 8 characters long.');
+    }
+    if (password.length > 72) {
+      throw new ApiError(400, 'Password must be 72 characters or fewer.');
+    }
+    // The browser always sends confirmPassword; API clients may omit it.
+    // When present it must match, so a typo cannot create an unintended account.
+    if (confirmPassword !== undefined && String(confirmPassword) !== password) {
+      throw new ApiError(400, 'Passwords do not match.');
     }
 
     const passwordHash = await bcrypt.hash(password, 10);

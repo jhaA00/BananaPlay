@@ -1,9 +1,16 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import Brand from './Brand.jsx';
 
 export default function Layout() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  function handleSignOut() {
+    signOut();
+    // Explicit redirect so logout works even on routes that are not protected.
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div className="app-shell">
@@ -25,7 +32,13 @@ export default function Layout() {
                 <span className="user-chip-name">{user.username}</span>
                 <span className="user-chip-score">🏆 {user.bestScore}</span>
               </div>
-              <button type="button" className="icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out">
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={handleSignOut}
+                aria-label="Sign out"
+                title="Sign out"
+              >
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none">
                   <path
                     d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"
