@@ -1,5 +1,6 @@
--- Banana Puzzle database schema.
--- Safe to run repeatedly: every statement is idempotent.
+-- The Last Signal database baseline schema.
+-- Safe to run repeatedly: every statement is idempotent. Additive survival
+-- columns and tables are applied by the tracked migrations in ./migrations.
 
 CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,

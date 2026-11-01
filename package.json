@@ -2,7 +2,7 @@
   "name": "banana-puzzle",
   "version": "1.0.0",
   "private": true,
-  "description": "A full-stack banana puzzle game with auth, gameplay and a leaderboard.",
+  "description": "The Last Signal - a post-apocalyptic survival game with Banana API security ciphers, persistent progress and a leaderboard.",
   "workspaces": [
     "client",
     "server"
@@ -14,7 +14,7 @@
     "build": "npm run build -w client",
     "start": "npm run start -w server",
     "db:setup": "npm run db:setup -w server",
-    "db:seed": "npm run db:seed -w server"
+    "test:integration": "npm run test:integration -w server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
