@@ -54,7 +54,16 @@ export default function SecurityTerminal({
     onAnswer(Number(digit));
   }
 
-  const imageSrc = imageError ? null : `${round.imageUrl}${imageNonce ? `?r=${imageNonce}` : ''}`;
+  const imageSrc = useMemo(() => {
+    if (imageError) return null;
+    try {
+      const url = new URL(round.imageUrl);
+      if (imageNonce) url.searchParams.set('retry', String(imageNonce));
+      return url.toString();
+    } catch {
+      return round.imageUrl;
+    }
+  }, [imageError, imageNonce, round.imageUrl]);
 
   return (
     <div className="ls-terminal-overlay" role="dialog" aria-modal="true" aria-labelledby="terminal-title">
