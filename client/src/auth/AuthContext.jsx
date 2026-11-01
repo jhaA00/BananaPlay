@@ -48,10 +48,10 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
-  const signUp = useCallback(async ({ username, email, password }) => {
+  const signUp = useCallback(async ({ username, email, password, confirmPassword }) => {
     const data = await api('/auth/register', {
       method: 'POST',
-      body: { username, email, password },
+      body: { username, email, password, confirmPassword },
       auth: false,
     });
     setStoredToken(data.token);

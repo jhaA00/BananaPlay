@@ -186,7 +186,7 @@ All endpoints return JSON. Protected routes require an `Authorization: Bearer <t
 | Method | Endpoint                 | Auth | Description                                                    |
 | ------ | ------------------------ | ---- | -------------------------------------------------------------- |
 | GET    | `/api/health`            | No   | Health check.                                                  |
-| POST   | `/api/auth/register`     | No   | Create an account. Body: `username`, `email`, `password`.       |
+| POST   | `/api/auth/register`     | No   | Create an account. Body: `username`, `email`, `password`, `confirmPassword`. |
 | POST   | `/api/auth/login`        | No   | Log in. Body: `identifier` (email or username), `password`.     |
 | GET    | `/api/auth/me`           | Yes  | Current user profile.                                          |
 | GET    | `/api/game/state`        | Yes  | Active run and open puzzle, creating them if needed.            |
@@ -202,7 +202,7 @@ All endpoints return JSON. Protected routes require an `Authorization: Bearer <t
 # Register
 curl -X POST http://localhost:4000/api/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"username":"player1","email":"player1@example.com","password":"secret123"}'
+  -d '{"username":"player1","email":"player1@example.com","password":"secret123","confirmPassword":"secret123"}'
 
 # Log in
 curl -X POST http://localhost:4000/api/auth/login \

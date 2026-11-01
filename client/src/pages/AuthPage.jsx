@@ -18,6 +18,7 @@ export default function AuthPage({ mode }) {
     email: '',
     identifier: '',
     password: '',
+    confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -45,8 +46,16 @@ export default function AuthPage({ mode }) {
       setError('Enter your email or username.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (password.length > 72) {
+      setError('Password must be 72 characters or fewer.');
+      return;
+    }
+    if (isRegister && password !== form.confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
@@ -57,6 +66,7 @@ export default function AuthPage({ mode }) {
           username: form.username.trim(),
           email: form.email.trim(),
           password,
+          confirmPassword: form.confirmPassword,
         });
       } else {
         await signIn({ identifier: form.identifier.trim(), password });
@@ -213,10 +223,11 @@ export default function AuthPage({ mode }) {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={isRegister ? 'new-password' : 'current-password'}
-                  placeholder={isRegister ? 'At least 6 characters' : 'Your password'}
+                  placeholder={isRegister ? 'At least 8 characters' : 'Your password'}
                   value={form.password}
                   onChange={update('password')}
-                  minLength={6}
+                  minLength={8}
+                  maxLength={72}
                   required
                 />
                 <button
@@ -228,7 +239,28 @@ export default function AuthPage({ mode }) {
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
+              {isRegister && (
+                <span className="field-hint">Use at least 8 characters.</span>
+              )}
             </div>
+
+            {isRegister && (
+              <div className="field">
+                <label htmlFor="confirmPassword">Confirm password</label>
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Repeat your password"
+                  value={form.confirmPassword}
+                  onChange={update('confirmPassword')}
+                  minLength={8}
+                  maxLength={72}
+                  required
+                />
+              </div>
+            )}
 
             <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
               {submitting ? (
