@@ -38,12 +38,26 @@ app.use(
 );
 
 app.use(
-  cors({
-    origin(origin, callback) {
-      // Requests without an Origin header (curl, health checks) are allowed.
-      if (!origin || config.clientOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error('Not allowed by CORS'));
-    },
+  cors((req, callback) => {
+    const origin = req.header('origin');
+
+    // Requests without an Origin header (curl, health checks) are allowed.
+    if (!origin) return callback(null, { origin: true });
+
+    // Same-origin requests are allowed even when the built client is served by
+    // this process, because browsers send an Origin header for asset requests.
+    let sameOrigin = false;
+    try {
+      sameOrigin = new URL(origin).host === req.get('host');
+    } catch {
+      sameOrigin = false;
+    }
+
+    if (sameOrigin || config.clientOrigins.includes(origin)) {
+      return callback(null, { origin: true });
+    }
+
+    return callback(new Error('Not allowed by CORS'));
   }),
 );
 

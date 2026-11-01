@@ -24,6 +24,10 @@ export function publicGame(row) {
     correctAnswers: row.correct_answers,
     hintsUsed: row.hints_used,
     status: row.status,
+    outcome: row.outcome ?? null,
+    currentMission: row.current_mission,
+    missionsCompleted: row.missions_completed,
     startedAt: row.started_at,
+    finishedAt: row.finished_at,
   };
 }

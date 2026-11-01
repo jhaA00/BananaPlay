@@ -2,44 +2,51 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import Brand from './Brand.jsx';
 
+const NAV_ITEMS = [
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/missions', label: 'Missions' },
+  { to: '/leaderboard', label: 'Leaderboard' },
+  { to: '/history', label: 'History' },
+  { to: '/profile', label: 'Profile' },
+];
+
 export default function Layout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
   function handleSignOut() {
     signOut();
-    // Explicit redirect so logout works even on routes that are not protected.
     navigate('/login', { replace: true });
   }
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="header-inner">
-          <Brand />
+    <div className="ls-shell">
+      <header className="ls-header">
+        <div className="ls-header-inner">
+          <Brand to="/dashboard" />
 
-          <nav className="main-nav" aria-label="Main navigation">
-            <NavLink to="/play">Play</NavLink>
-            <NavLink to="/scoreboard">Scoreboard</NavLink>
+          <nav className="ls-nav" aria-label="Main navigation">
+            {NAV_ITEMS.map((item) => (
+              <NavLink key={item.to} to={item.to}>
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
 
           {user && (
-            <div className="header-user">
-              <div className="user-chip">
-                <span className="avatar" aria-hidden="true">
-                  {user.username.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="user-chip-name">{user.username}</span>
-                <span className="user-chip-score">🏆 {user.bestScore}</span>
-              </div>
+            <div className="ls-user">
+              <span className="ls-avatar" aria-hidden="true">
+                {user.username.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="ls-user-name">{user.username}</span>
               <button
                 type="button"
-                className="icon-btn"
+                className="ls-icon-btn"
                 onClick={handleSignOut}
                 aria-label="Sign out"
                 title="Sign out"
               >
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
                   <path
                     d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"
                     stroke="currentColor"
@@ -54,14 +61,14 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="page">
+      <main className="ls-main">
         <Outlet />
       </main>
 
-      <footer className="app-footer">
-        <span>🍌 Banana Puzzle · College project</span>
+      <footer className="ls-footer">
+        <span>The Last Signal · College project</span>
         <span>
-          Puzzles by{' '}
+          Decryption puzzles by{' '}
           <a href="https://marcconrad.com/uob/banana/" target="_blank" rel="noreferrer">
             UOB Banana
           </a>

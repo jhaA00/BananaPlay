@@ -71,7 +71,7 @@ export default function AuthPage({ mode }) {
       } else {
         await signIn({ identifier: form.identifier.trim(), password });
       }
-      navigate(location.state?.from || '/play', { replace: true });
+      navigate(location.state?.from || '/dashboard', { replace: true });
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -87,43 +87,44 @@ export default function AuthPage({ mode }) {
         </div>
 
         <div className="showcase-content">
-          <p className="eyebrow">The daily brain snack</p>
+          <p className="eyebrow">Emergency broadcast // 2049</p>
           <h1>
-            Crack the code.
+            The world went dark.
             <br />
-            <span>Climb the board.</span>
+            <span>Answer the signal.</span>
           </h1>
           <p className="showcase-lead">
-            Every puzzle hides one missing digit. Solve it, protect your three lives and see how
-            far up the leaderboard you can climb.
+            The grid is gone and the city is silent. Five locked locations stand between you and
+            the last working transmitter. Decrypt the security systems, keep three lives alive and
+            send the signal.
           </p>
 
           <ul className="showcase-points">
             <li>
               <span className="point-icon" aria-hidden="true">
-                🧩
+                🔐
               </span>
               <div>
-                <strong>Fresh puzzles every round</strong>
-                <p>Real missing-number challenges, served hot from the UOB Banana API.</p>
+                <strong>Numerical security ciphers</strong>
+                <p>Every panel and container is protected by a live UOB Banana puzzle.</p>
               </div>
             </li>
             <li>
               <span className="point-icon" aria-hidden="true">
-                💡
+                ⏱️
               </span>
               <div>
-                <strong>Stuck? Take a hint</strong>
-                <p>Narrow down the answer, but keep in mind that a hint halves the points.</p>
+                <strong>45 seconds per cipher</strong>
+                <p>The clock is enforced by the server. Miss the window and you lose a life.</p>
               </div>
             </li>
             <li>
               <span className="point-icon" aria-hidden="true">
-                🏆
+                📡
               </span>
               <div>
-                <strong>Chase the top spot</strong>
-                <p>Your best run is saved to a global scoreboard for everyone to see.</p>
+                <strong>Restore the tower</strong>
+                <p>Complete all five missions and transmit the Last Signal.</p>
               </div>
             </li>
           </ul>
@@ -131,16 +132,16 @@ export default function AuthPage({ mode }) {
 
         <div className="showcase-art" aria-hidden="true">
           <div className="art-puzzle">
-            <span className="art-label">Find the missing number</span>
+            <span className="art-label">Security cipher detected</span>
             <div className="art-equation">
               <span>🍌</span>
               <span className="art-question">?</span>
               <span>🍌</span>
             </div>
-            <span className="art-pill">+10 points</span>
+            <span className="art-pill">45s window</span>
           </div>
           <span className="art-chip art-chip-one">3 lives</span>
-          <span className="art-chip art-chip-two">🔥 streak</span>
+          <span className="art-chip art-chip-two">5 missions</span>
         </div>
 
         <p className="showcase-foot">React · Express · PostgreSQL</p>
@@ -152,12 +153,12 @@ export default function AuthPage({ mode }) {
             <Brand to={isRegister ? '/register' : '/login'} />
           </div>
 
-          <p className="eyebrow">{isRegister ? 'Join the bunch' : 'Welcome back'}</p>
-          <h2>{isRegister ? 'Create your account' : 'Sign in to play'}</h2>
+          <p className="eyebrow">{isRegister ? 'New survivor' : 'Survivor access'}</p>
+          <h2>{isRegister ? 'Create your survivor ID' : 'Return to the shelter'}</h2>
           <p className="auth-sub">
             {isRegister
-              ? 'Free to play. Three lives, endless puzzles.'
-              : 'Your puzzles and best score are waiting for you.'}
+              ? 'One account, persistent progress, five missions.'
+              : 'Your run, rank and records are waiting.'}
           </p>
 
           {error && (
