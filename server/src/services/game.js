@@ -986,35 +986,50 @@ export async function abandonRun(userId) {
   return loadGameState(userId);
 }
 
-export async function getLeaderboard(userId) {
-  const { rows } = await query(
-    `WITH stats AS (
-       SELECT u.id,
-              u.username,
-              u.best_score,
-              u.best_streak,
-              u.total_score,
-              u.games_played,
-              COALESCE(SUM(g.missions_completed), 0)::int AS missions_completed,
-              COALESCE(MAX(g.score), 0)::int AS best_game_score
-         FROM users u
-         LEFT JOIN games g ON g.user_id = u.id AND g.status = 'finished'
-        GROUP BY u.id
-     ), ranked AS (
-       SELECT *,
-              ROW_NUMBER() OVER (
-                ORDER BY total_score DESC, missions_completed DESC, best_score DESC, username ASC
-              ) AS rank
-         FROM stats
-        WHERE games_played > 0
-     )
-     SELECT * FROM ranked
-      WHERE rank <= 20 OR id = $1
-      ORDER BY rank`,
-    [userId],
-  );
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
 
-  const entries = rows.map((row) => ({
+function parsePagination(page, pageSize) {
+  const size = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Number.parseInt(pageSize, 10) || DEFAULT_PAGE_SIZE),
+  );
+  const requested = Math.max(1, Number.parseInt(page, 10) || 1);
+
+  return { requested, size };
+}
+
+function paginate(total, { requested, size }) {
+  const totalPages = Math.max(1, Math.ceil(total / size));
+  const page = Math.min(requested, totalPages);
+  const offset = (page - 1) * size;
+
+  return { page, pageSize: size, totalPages, offset };
+}
+
+const RANKED_STATS_CTE = `WITH stats AS (
+   SELECT u.id,
+          u.username,
+          u.best_score,
+          u.best_streak,
+          u.total_score,
+          u.games_played,
+          COALESCE(SUM(g.missions_completed), 0)::int AS missions_completed,
+          COALESCE(MAX(g.score), 0)::int AS best_game_score
+     FROM users u
+     LEFT JOIN games g ON g.user_id = u.id AND g.status = 'finished'
+    GROUP BY u.id
+ ), ranked AS (
+   SELECT *,
+          ROW_NUMBER() OVER (
+            ORDER BY total_score DESC, missions_completed DESC, best_score DESC, username ASC
+          ) AS rank
+     FROM stats
+    WHERE games_played > 0
+ )`;
+
+function serializeLeaderboardRow(row) {
+  return {
     id: row.id,
     username: row.username,
     bestScore: row.best_score,
@@ -1024,41 +1039,144 @@ export async function getLeaderboard(userId) {
     missionsCompleted: row.missions_completed,
     bestGameScore: row.best_game_score,
     rank: Number(row.rank),
-  }));
-
-  const { rows: countRows } = await query(
-    `SELECT COUNT(*)::int AS total FROM users WHERE games_played > 0`,
-  );
-
-  return {
-    leaderboard: entries.filter((entry) => entry.rank <= 20),
-    me: entries.find((entry) => entry.id === userId) || null,
-    totalPlayers: countRows[0].total,
   };
 }
 
-export async function getHistory(userId) {
+async function globalRankFor(userId) {
+  const { rows } = await query(`${RANKED_STATS_CTE} SELECT rank FROM ranked WHERE id = $1`, [userId]);
+  return rows[0] ? Number(rows[0].rank) : null;
+}
+
+export async function getLeaderboard(userId, { page, pageSize } = {}) {
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*)::int AS total FROM users WHERE games_played > 0`,
+  );
+  const totalPlayers = countRows[0].total;
+  const pagination = paginate(totalPlayers, parsePagination(page, pageSize));
+
+  const { rows } = await query(
+    `${RANKED_STATS_CTE}
+     SELECT * FROM ranked ORDER BY rank LIMIT $1 OFFSET $2`,
+    [pagination.pageSize, pagination.offset],
+  );
+
+  const { rows: meRows } = await query(
+    `${RANKED_STATS_CTE} SELECT * FROM ranked WHERE id = $1`,
+    [userId],
+  );
+
+  return {
+    leaderboard: rows.map(serializeLeaderboardRow),
+    me: meRows[0] ? serializeLeaderboardRow(meRows[0]) : null,
+    totalPlayers,
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    totalPages: pagination.totalPages,
+  };
+}
+
+async function loadCareerStats(userId) {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS total_runs,
+            COALESCE(SUM(CASE WHEN outcome = 'won' THEN 1 ELSE 0 END), 0)::int AS victories,
+            COALESCE(SUM(missions_completed), 0)::int AS missions_completed,
+            COALESCE(SUM(correct_answers), 0)::int AS puzzles_solved,
+            COALESCE(SUM(hints_used), 0)::int AS hints_used
+       FROM games
+      WHERE user_id = $1 AND status = 'finished'`,
+    [userId],
+  );
+  const stats = rows[0] ?? {};
+
+  return {
+    totalRuns: stats.total_runs ?? 0,
+    victories: stats.victories ?? 0,
+    missionsCompleted: stats.missions_completed ?? 0,
+    puzzlesSolved: stats.puzzles_solved ?? 0,
+    hintsUsed: stats.hints_used ?? 0,
+  };
+}
+
+export async function getScoreSummary(userId) {
+  const user = await loadUser(userId);
+
+  return {
+    user: publicUser(user),
+    rank: rankForScore(user.total_score),
+    globalRank: user.games_played > 0 ? await globalRankFor(userId) : null,
+    stats: await loadCareerStats(userId),
+    achievements: await loadAchievements(userId),
+  };
+}
+
+export async function getPlayerProfile(username) {
+  const { rows } = await query(
+    `SELECT id, username, best_score, best_streak, total_score, games_played, created_at
+       FROM users
+      WHERE lower(username) = lower($1)
+      LIMIT 1`,
+    [String(username ?? '').trim()],
+  );
+
+  const user = rows[0];
+  if (!user) return null;
+
+  const history = await getHistory(user.id, { pageSize: 5 });
+
+  return {
+    user: {
+      id: user.id,
+      username: user.username,
+      bestScore: user.best_score,
+      totalScore: user.total_score,
+      bestStreak: user.best_streak,
+      gamesPlayed: user.games_played,
+      createdAt: user.created_at,
+    },
+    rank: rankForScore(user.total_score),
+    globalRank: user.games_played > 0 ? await globalRankFor(user.id) : null,
+    stats: await loadCareerStats(user.id),
+    achievements: await loadAchievements(user.id),
+    runs: history.runs,
+    totalRuns: history.totalRuns,
+  };
+}
+
+export async function getHistory(userId, { page, pageSize } = {}) {
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*)::int AS total FROM games WHERE user_id = $1 AND status = 'finished'`,
+    [userId],
+  );
+  const totalRuns = countRows[0].total;
+  const pagination = paginate(totalRuns, parsePagination(page, pageSize));
+
   const { rows } = await query(
     `SELECT id, score, missions_completed, outcome, correct_answers, max_streak,
             hints_used, started_at, finished_at
        FROM games
       WHERE user_id = $1 AND status = 'finished'
       ORDER BY finished_at DESC NULLS LAST
-      LIMIT 20`,
-    [userId],
+      LIMIT $2 OFFSET $3`,
+    [userId, pagination.pageSize, pagination.offset],
   );
 
-  return rows.map((row) => ({
-    id: row.id,
-    score: row.score,
-    missionsCompleted: row.missions_completed,
-    outcome: row.outcome,
-    correctAnswers: row.correct_answers,
-    maxStreak: row.max_streak,
-    hintsUsed: row.hints_used,
-    startedAt: row.started_at,
-    finishedAt: row.finished_at,
-  }));
+  return {
+    runs: rows.map((row) => ({
+      id: row.id,
+      score: row.score,
+      missionsCompleted: row.missions_completed,
+      outcome: row.outcome,
+      correctAnswers: row.correct_answers,
+      maxStreak: row.max_streak,
+      hintsUsed: row.hints_used,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+    })),
+    totalRuns,
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    totalPages: pagination.totalPages,
+  };
 }
 
 export { STARTING_LIVES, MISSION_BONUS, VICTORY_BONUS, POINTS_PER_PUZZLE };

@@ -26,14 +26,20 @@ function formatDate(value) {
 
 export default function History() {
   const { signOut } = useAuth();
-  const [runs, setRuns] = useState(null);
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState(null);
+  const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const data = await api('/scores/history');
-      setRuns(data.runs);
+      const [history, scoreSummary] = await Promise.all([
+        api(`/scores/history?page=${page}`),
+        api('/scores/me'),
+      ]);
+      setData(history);
+      setSummary(scoreSummary);
     } catch (requestError) {
       if (requestError.status === 401) {
         signOut();
@@ -41,15 +47,17 @@ export default function History() {
       }
       setError(requestError.message);
     }
-  }, [signOut]);
+  }, [page, signOut]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const played = runs?.length ?? 0;
-  const victories = runs?.filter((run) => run.outcome === 'won').length ?? 0;
-  const best = runs?.reduce((max, run) => Math.max(max, run.score), 0) ?? 0;
+  const runs = data?.runs ?? null;
+  const played = summary?.stats.totalRuns ?? data?.totalRuns ?? 0;
+  const victories = summary?.stats.victories ?? 0;
+  const best = summary?.user.bestScore ?? 0;
+  const totalPages = data?.totalPages ?? 1;
 
   return (
     <div className="ls-page">
@@ -103,6 +111,11 @@ export default function History() {
                 <p className="ls-kicker">Recent runs</p>
                 <h2>Field records</h2>
               </div>
+              {totalPages > 1 && (
+                <span className="ls-page-indicator">
+                  Page {data?.page ?? 1} of {totalPages}
+                </span>
+              )}
             </div>
 
             {played === 0 ? (
@@ -110,38 +123,64 @@ export default function History() {
                 <p>No finished runs yet. Start a run from the dashboard to write the first entry.</p>
               </div>
             ) : (
-              <div className="ls-table-scroll">
-                <table className="ls-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Run</th>
-                      <th scope="col">Outcome</th>
-                      <th scope="col">Score</th>
-                      <th scope="col">Missions</th>
-                      <th scope="col">Solved</th>
-                      <th scope="col">Hints</th>
-                      <th scope="col">Finished</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {runs.map((run) => (
-                      <tr key={run.id}>
-                        <td className="ls-table-rank">#{run.id}</td>
-                        <td>
-                          <span className={`ls-chip ${OUTCOME_CLASS[run.outcome] ?? 'is-available'}`}>
-                            {OUTCOME_LABEL[run.outcome] ?? run.outcome ?? 'Finished'}
-                          </span>
-                        </td>
-                        <td className="ls-table-score">{run.score}</td>
-                        <td>{run.missionsCompleted}/5</td>
-                        <td>{run.correctAnswers}</td>
-                        <td>{run.hintsUsed}</td>
-                        <td className="ls-table-date">{formatDate(run.finishedAt)}</td>
+              <>
+                <div className="ls-table-scroll">
+                  <table className="ls-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Run</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Score</th>
+                        <th scope="col">Missions</th>
+                        <th scope="col">Solved</th>
+                        <th scope="col">Hints</th>
+                        <th scope="col">Finished</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {runs.map((run) => (
+                        <tr key={run.id}>
+                          <td className="ls-table-rank">#{run.id}</td>
+                          <td>
+                            <span className={`ls-chip ${OUTCOME_CLASS[run.outcome] ?? 'is-available'}`}>
+                              {OUTCOME_LABEL[run.outcome] ?? run.outcome ?? 'Finished'}
+                            </span>
+                          </td>
+                          <td className="ls-table-score">{run.score}</td>
+                          <td>{run.missionsCompleted}/5</td>
+                          <td>{run.correctAnswers}</td>
+                          <td>{run.hintsUsed}</td>
+                          <td className="ls-table-date">{formatDate(run.finishedAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {totalPages > 1 && (
+                  <nav className="ls-pagination" aria-label="History pages">
+                    <button
+                      type="button"
+                      className="ls-btn ls-btn-ghost ls-btn-small"
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      disabled={(data?.page ?? 1) <= 1}
+                    >
+                      Previous
+                    </button>
+                    <span>
+                      Page {data?.page ?? 1} of {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="ls-btn ls-btn-ghost ls-btn-small"
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                      disabled={(data?.page ?? 1) >= totalPages}
+                    >
+                      Next
+                    </button>
+                  </nav>
+                )}
+              </>
             )}
           </section>
         </>

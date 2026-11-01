@@ -68,6 +68,9 @@ export default function Profile() {
         </div>
         <div className="ls-page-head-actions">
           {rank && <RankBadge rank={rank} />}
+          <Link to={`/players/${profile.username}`} className="ls-btn ls-btn-ghost">
+            Public file
+          </Link>
           <button
             type="button"
             className="ls-btn ls-btn-ghost"

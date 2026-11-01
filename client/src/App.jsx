@@ -13,6 +13,7 @@ import MissionMap from './pages/MissionMap.jsx';
 import MissionPlay from './pages/MissionPlay.jsx';
 import NotFound from './pages/NotFound.jsx';
 import Profile from './pages/Profile.jsx';
+import PublicProfile from './pages/PublicProfile.jsx';
 
 function GuestOnly({ children }) {
   const { user, initializing } = useAuth();
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/history" element={<History />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/players/:username" element={<PublicProfile />} />
 
         {/* Backwards-compatible links from the original Banana Puzzle UI. */}
         <Route path="/play" element={<Navigate to="/dashboard" replace />} />

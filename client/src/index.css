@@ -3812,7 +3812,46 @@ input {
   font-weight: 600;
 }
 
-.ls-you-tag {
+a.ls-player-cell,
+.ls-player-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.16s ease;
+}
+
+a.ls-player-cell:hover,
+.ls-player-link:hover {
+  color: var(--amber);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ls-page-indicator {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ls-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.ls-pagination span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}.ls-you-tag {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--amber);
