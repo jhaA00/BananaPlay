@@ -9,8 +9,6 @@ import SurvivalHud from '../components/SurvivalHud.jsx';
 import { Spinner } from '../components/Loader.jsx';
 import useGameState from '../hooks/useGameState.js';
 
-const ACHIEVEMENT_LOOKUP = ['achievement'];
-
 function endPayload({ game, user, state, fallbackOutcome }) {
   return {
     outcome: game?.outcome ?? fallbackOutcome ?? 'lost',
@@ -123,6 +121,25 @@ export default function MissionPlay() {
       showAchievements(data.achievements);
       setActionError('');
 
+      if (data.gameOver) {
+        setTerminal(null);
+        if (data.missionCompleted?.victory) {
+          setMissionResult({
+            ...data.missionCompleted,
+            score: data.game?.score ?? 0,
+            achievements: data.achievements ?? [],
+          });
+          setEndGame(
+            endPayload({ game: data.game, user: data.user, state: data.state, fallbackOutcome: 'won' }),
+          );
+        } else {
+          setEndGame(
+            endPayload({ game: data.game, state: data.state, fallbackOutcome: 'lost' }),
+          );
+        }
+        return;
+      }
+
       if (data.expired) {
         setTerminal((current) => ({
           ...current,
@@ -134,25 +151,6 @@ export default function MissionPlay() {
             text: 'The terminal locked itself before the answer arrived. One life lost.',
           },
         }));
-        return;
-      }
-
-      if (data.gameOver && data.missionCompleted?.victory) {
-        setTerminal(null);
-        setMissionResult({
-          ...data.missionCompleted,
-          score: data.game?.score ?? 0,
-          achievements: data.achievements ?? [],
-        });
-        setEndGame(
-          endPayload({ game: data.game, user: data.user, state: data.state, fallbackOutcome: 'won' }),
-        );
-        return;
-      }
-
-      if (data.gameOver) {
-        setTerminal(null);
-        setEndGame(endPayload({ game: data.game, state: data.state, fallbackOutcome: 'lost' }));
         return;
       }
 
