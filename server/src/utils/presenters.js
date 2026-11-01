@@ -1,3 +1,5 @@
+import { rankForScore } from '../game/ranks.js';
+
 export const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -11,6 +13,7 @@ export function publicUser(row) {
     bestStreak: row.best_streak,
     gamesPlayed: row.games_played,
     createdAt: row.created_at,
+    rank: rankForScore(row.total_score),
   };
 }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import RankBadge from '../components/RankBadge.jsx';
@@ -7,6 +8,7 @@ import { rankForScore } from '../game/ranks.js';
 
 export default function Leaderboard() {
   const { user, signOut } = useAuth();
+  const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,7 +17,7 @@ export default function Leaderboard() {
     setLoading(true);
     setError('');
     try {
-      setData(await api('/scores/leaderboard'));
+      setData(await api(`/scores/leaderboard?page=${page}`));
     } catch (requestError) {
       if (requestError.status === 401) {
         signOut();
@@ -25,13 +27,14 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [signOut]);
+  }, [page, signOut]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const board = data?.leaderboard ?? [];
+  const totalPages = data?.totalPages ?? 1;
 
   return (
     <div className="ls-page">
@@ -69,7 +72,10 @@ export default function Leaderboard() {
               <div>
                 <p className="ls-kicker">Your position</p>
                 <h2>
-                  #{data.me.rank} · {data.me.username}
+                  #{data.me.rank} ·{' '}
+                  <Link to={`/players/${data.me.username}`} className="ls-player-link">
+                    {data.me.username}
+                  </Link>
                 </h2>
               </div>
               <div className="ls-me-stats">
@@ -92,6 +98,9 @@ export default function Leaderboard() {
                 <p className="ls-kicker">Top survivors</p>
                 <h2>Global ranking</h2>
               </div>
+              <span className="ls-page-indicator">
+                Page {data?.page ?? 1} of {totalPages}
+              </span>
             </div>
 
             <div className="ls-table-scroll">
@@ -111,13 +120,13 @@ export default function Leaderboard() {
                     <tr key={entry.id} className={entry.id === user?.id ? 'is-you' : ''}>
                       <td className="ls-table-rank">{entry.rank}</td>
                       <td>
-                        <span className="ls-player-cell">
+                        <Link to={`/players/${entry.username}`} className="ls-player-cell">
                           <span className="ls-avatar" aria-hidden="true">
                             {entry.username.slice(0, 1).toUpperCase()}
                           </span>
                           {entry.username}
                           {entry.id === user?.id && <span className="ls-you-tag">you</span>}
-                        </span>
+                        </Link>
                       </td>
                       <td>
                         <RankBadge rank={rankForScore(entry.totalScore)} subtle />
@@ -137,6 +146,30 @@ export default function Leaderboard() {
                 </tbody>
               </table>
             </div>
+
+            {totalPages > 1 && (
+              <nav className="ls-pagination" aria-label="Leaderboard pages">
+                <button
+                  type="button"
+                  className="ls-btn ls-btn-ghost ls-btn-small"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={loading || (data?.page ?? 1) <= 1}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {data?.page ?? 1} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="ls-btn ls-btn-ghost ls-btn-small"
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  disabled={loading || (data?.page ?? 1) >= totalPages}
+                >
+                  Next
+                </button>
+              </nav>
+            )}
           </section>
         </>
       )}
