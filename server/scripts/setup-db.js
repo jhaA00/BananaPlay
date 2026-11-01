@@ -40,7 +40,15 @@ try {
   await appDb.connect();
   const schema = fs.readFileSync(path.resolve(__dirname, '../src/schema.sql'), 'utf8');
   await appDb.query(schema);
-  console.log('[setup] Schema is up to date. You are ready to play! 🍌');
 } finally {
   await appDb.end();
+}
+
+// Apply tracked, additive migrations (001, 002, …) on top of the baseline.
+const { migrate, pool } = await import('../src/db.js');
+try {
+  await migrate();
+  console.log('[setup] Schema and migrations are up to date. You are ready to play!');
+} finally {
+  await pool.end();
 }
