@@ -1,11 +1,16 @@
-# 🍌 Banana Puzzle
+# 📡 THE LAST SIGNAL
 
-A full-stack puzzle game built as a college project. Register an account, log in, and solve
-banana-themed number puzzles. Every answer is checked on the server, and your best scores live
-on a shared leaderboard.
+**A post-apocalyptic survival adventure built on the Banana Puzzle stack.**
 
-The puzzles come from the [UOB Banana API](https://marcconrad.com/uob/banana/api.php): each
-round is an image with one missing number.
+The lights went out. The network went silent. Somewhere underground, a shelter is running out of
+air, and the only way out is through five sealed missions. Each door, generator and transmitter is
+guarded by a **security cipher** — a numerical puzzle served by the
+[UOB Banana API](https://marcconrad.com/uob/banana/api.php). Solve the ciphers, keep three lives
+intact, and send the last signal before the silence wins.
+
+This is a full-stack college project: React + Vite on the front, Express + PostgreSQL behind it,
+JWT authentication, server-authoritative scoring, persistent progress and a global survivor
+leaderboard.
 
 ![Tech stack](https://img.shields.io/badge/React-18-61dafb?style=flat-square)
 ![Tech stack](https://img.shields.io/badge/Vite-6-646cff?style=flat-square)
@@ -14,60 +19,124 @@ round is an image with one missing number.
 
 ---
 
+## The story
+
+| # | Mission | Location | Reward |
+| - | ------- | -------- | ------ |
+| 1 | **Escape the Shelter** | Underground Shelter B-7 | Shelter exit opened |
+| 2 | **The Supply Run** | Ruins of Meridian Market | Food, medicine and batteries secured |
+| 3 | **Restore the Power** | Substation 04 | Electricity restored |
+| 4 | **The Silent Network** | Communications Centre | Communications network restored |
+| 5 | **The Last Signal** | Emergency Transmission Tower | The Last Signal transmitted |
+
+Missions unlock in order. Every mission hides two interactive objects, and the important ones open
+a **security terminal**: a Banana API cipher with a 45-second window and a single-digit answer.
+Mission flavour objects also hold supplies that are carried in the run inventory.
+
 ## Features
 
-- **Accounts** — register and log in with a username or email. Passwords are hashed with bcrypt,
-  and sessions use JSON Web Tokens.
-- **Playable puzzles** — the puzzle image is loaded from the UOB Banana API. Type a digit or use
-  the on-screen keypad to answer.
-- **Lives and scoring** — start each run with 3 lives. A correct answer is worth **+10 points**;
-  using a hint halves that puzzle to **+5 points**. A wrong answer costs one life and reveals the
-  correct digit.
-- **Hints** — ask for a hint and get a 5-number range that contains the answer.
-- **Scoreboard** — a global leaderboard ranked by best score, plus your personal best, total
-  score, games played, and recent runs.
-- **Persistent progress** — games, rounds, and scores are stored in PostgreSQL, so refreshing the
-  page does not lose a run.
-- **Responsive UI** — dark banana-themed design that works on desktop and mobile.
+- **Account system** — register and log in with a username or email. Passwords are hashed with
+  bcrypt and sessions use JSON Web Tokens. Registration validates the password and confirmation on
+  both the client and the server.
+- **Five-mission campaign** — a sequential mission map, briefing screens, illustrated scenes and a
+  final transmission tower with a victory sequence.
+- **Security terminals** — each terminal loads a cipher from the UOB Banana API, validates the
+  answer on the server, and locks when the 45-second timer runs out.
+- **Lives and scoring** — every run starts with **3 lives**. A wrong answer or an expired cipher
+  costs one life. Losing the third life ends the run immediately.
+- **Hints** — request a five-number range containing the answer. A hinted cipher is worth **+5**
+  instead of **+10**.
+- **Inventory** — supplies recovered during missions are stored per run and shown in the HUD.
+- **Server-authoritative rules** — timers, answers, lives, rewards, mission completion and
+  duplicate-answer prevention all happen in PostgreSQL transactions. The browser never receives a
+  cipher solution before scoring.
+- **Persistent progress** — active runs, completed missions, inventory, scores and finished runs
+  survive refreshes, logins and server restarts.
+- **Leaderboard and profiles** — a paginated global ranking with lifetime score, best run and
+  missions cleared, plus public survivor files that never expose email addresses.
+- **Run history** — every finished run is archived as a victory (`won`), loss (`lost`) or
+  abandonment (`abandoned`).
+- **Achievements and ranks** — seven unlockable badges and five survivor ranks based on lifetime
+  score.
+- **Responsive UI** — a dark survival-themed interface that works on desktop and mobile.
+
+## Scoring, ranks and achievements
+
+| Action | Points |
+| ------ | ------ |
+| Solve a cipher | +10 |
+| Solve a hinted cipher | +5 |
+| Complete a mission | +100 |
+| Transmit the final signal | +250 |
+| Wrong answer or timeout | −1 life |
+
+A flawless run with no hints scores **850** (10 ciphers × 10, five mission bonuses, one victory
+bonus). Using exactly one hint still finishes with **845**.
+
+**Survivor ranks** (based on lifetime score):
+
+| Rank | Threshold |
+| ---- | --------- |
+| New Survivor | 0 |
+| Field Explorer | 100 |
+| Resource Hunter | 300 |
+| Signal Specialist | 600 |
+| Last Signal Hero | 1000 |
+
+**Achievements:**
+
+| Badge | How to earn it |
+| ----- | -------------- |
+| 📡 First Transmission | Complete mission 1 |
+| 🎒 Supply Hunter | Complete mission 2 |
+| ⚡ Power Restored | Complete mission 3 |
+| 📶 Network Reconnected | Complete mission 4 |
+| 🔆 Last Signal | Complete mission 5 |
+| 🧩 Puzzle Specialist | Solve ten or more ciphers |
+| 🛡️ Perfect Survivor | Win a run without losing a life |
 
 ## Tech stack
 
-| Layer      | Technology                                        |
-| ---------- | ------------------------------------------------- |
-| Frontend   | React 18, React Router 6, Vite 6                  |
-| Backend    | Node.js, Express 4                                |
-| Database   | PostgreSQL (`pg`)                                 |
-| Auth       | JWT (`jsonwebtoken`), `bcryptjs`                  |
-| Security   | Helmet, CORS allow-list, rate limiting            |
-| Dev tools  | npm workspaces, `concurrently`, `node --watch`    |
+| Layer     | Technology |
+| --------- | ---------- |
+| Frontend  | React 18, React Router 6, Vite 6 |
+| Backend   | Node.js, Express 4 |
+| Database  | PostgreSQL, tracked SQL migrations |
+| Auth      | JWT (`jsonwebtoken`), `bcryptjs` |
+| Security  | Helmet, CORS allow-list, rate limiting |
+| Dev tools | npm workspaces, `concurrently`, `node --watch` |
 
 ## Project structure
 
 ```
 banana-puzzle/
-├── client/                  # React + Vite frontend
+├── client/                       # React + Vite frontend
 │   ├── src/
-│   │   ├── auth/            # Auth context and protected routes
-│   │   ├── components/      # Layout, loader, modal, brand
-│   │   ├── pages/           # Play, Scoreboard, Auth, NotFound
-│   │   ├── api.js           # Fetch wrapper and token storage
-│   │   ├── App.jsx          # Routes
-│   │   └── index.css        # All styling
-│   └── vite.config.js       # Dev server and /api proxy
-├── server/                  # Express API
+│   │   ├── auth/                 # Auth context and protected routes
+│   │   ├── components/           # Layout, HUD, terminal, badges, modal
+│   │   ├── game/                 # Client mirror of ranks, badges and scenes
+│   │   ├── hooks/                # Game state and countdown hooks
+│   │   ├── pages/                # Landing, dashboard, missions, scores, profile
+│   │   ├── api.js                # Fetch wrapper and token storage
+│   │   ├── App.jsx               # Routes
+│   │   └── index.css             # All styling
+│   └── vite.config.js            # Dev server and /api proxy
+├── server/                       # Express API
 │   ├── scripts/
-│   │   ├── setup-db.js      # Creates the database and schema
-│   │   └── seed.js          # Optional demo leaderboard data
+│   │   ├── setup-db.js           # Creates the database, schema and migrations
+│   │   └── test-game.mjs         # End-to-end integration test
 │   └── src/
-│       ├── middleware/      # JWT auth middleware
-│       ├── routes/          # /auth, /game, /scores
-│       ├── services/        # Banana API client and game logic
-│       ├── utils/           # HTTP helpers and presenters
-│       ├── schema.sql       # Tables and indexes
-│       ├── config.js        # Environment configuration
-│       ├── db.js            # PostgreSQL pool and migration runner
-│       └── index.js         # Express app
-├── package.json             # Workspace scripts
+│       ├── game/                 # Mission catalogue, ranks and achievements
+│       ├── middleware/           # JWT auth middleware
+│       ├── migrations/           # Additive, tracked SQL migrations
+│       ├── routes/               # /auth, /game, /scores
+│       ├── services/             # Banana API client and game logic
+│       ├── utils/                # HTTP helpers and presenters
+│       ├── schema.sql            # Baseline tables and indexes
+│       ├── config.js             # Environment configuration
+│       ├── db.js                 # PostgreSQL pool and migration runner
+│       └── index.js              # Express app
+├── package.json                  # Workspace scripts
 └── README.md
 ```
 
@@ -81,17 +150,13 @@ banana-puzzle/
 
 ### 1. Install dependencies
 
-From the project root:
-
 ```bash
 npm install
 ```
 
-This installs the root, client, and server dependencies through npm workspaces.
+This installs the root, client and server dependencies through npm workspaces.
 
 ### 2. Configure the server
-
-Copy the example environment file and edit it:
 
 ```bash
 cp server/.env.example server/.env
@@ -106,11 +171,10 @@ CLIENT_ORIGIN=http://localhost:5173
 BANANA_API_URL=https://marcconrad.com/uob/banana/api.php
 ```
 
-- Set `DATABASE_URL` to your PostgreSQL connection string. If your database uses a password, add
-  it as `postgresql://user:password@localhost:5432/banana_game`.
+- Set `DATABASE_URL` to your PostgreSQL connection string. Include a password when your database
+  requires one: `postgresql://user:password@localhost:5432/banana_game`.
 - Replace `JWT_SECRET` with a long random value before deploying.
-- On macOS with a Homebrew PostgreSQL install, the default `postgresql://localhost:5432/banana_game`
-  usually works with your operating-system username.
+- `CLIENT_ORIGIN` accepts a comma-separated list of allowed frontend origins.
 
 ### 3. Create the database and schema
 
@@ -118,30 +182,14 @@ BANANA_API_URL=https://marcconrad.com/uob/banana/api.php
 npm run db:setup
 ```
 
-This connects to PostgreSQL, creates the `banana_game` database if it does not exist, and applies
-`schema.sql`. It is safe to run more than once.
+This creates the database if needed, applies the baseline `schema.sql`, then runs every tracked
+migration in `server/src/migrations/`. It is safe to run more than once. The server also applies
+missing migrations on startup.
 
-The server also applies the schema on startup, but `db:setup` is the explicit first-time step.
+Migrations are **additive**: they never drop or recreate `users`, `games` or `rounds`, so existing
+accounts and history are preserved. Applied files are recorded in `schema_migrations`.
 
-### 4. Optional: seed demo players
-
-```bash
-npm run db:seed
-```
-
-This adds six demo accounts so the leaderboard is not empty during a presentation. All of them use
-the password **`banana123`**:
-
-| Username     | Email               |
-| ------------ | ------------------- |
-| `PixelPeeler`| `pixel@example.com` |
-| `BananaBaron`| `baron@example.com` |
-| `CodeMonkey` | `monkey@example.com`|
-| `PeelGood`   | `peel@example.com`  |
-| `MangoMike`  | `mango@example.com` |
-| `FruitLoop`  | `fruit@example.com` |
-
-### 5. Run the app
+### 4. Run the app
 
 ```bash
 npm run dev
@@ -151,8 +199,7 @@ npm run dev
 - API: <http://localhost:4000>
 - Health check: <http://localhost:4000/api/health>
 
-Vite proxies `/api` requests to Express, so the browser only talks to port 5173 during
-development.
+Vite proxies `/api` requests to Express, so during development the browser only talks to port 5173.
 
 ## Production build
 
@@ -164,37 +211,50 @@ NODE_ENV=production npm start
 `npm run build` creates `client/dist`. When that folder exists, Express serves the built frontend
 itself, so the whole app runs from a single process at <http://localhost:4000>.
 
-Set `CLIENT_ORIGIN` to your real frontend origin if it differs from the API origin.
-
 ## How to play
 
-1. Register a new account, or log in with a demo account.
-2. Open the **Play** tab. A puzzle image shows an equation with one missing number.
-3. Enter a digit from 0 to 9 and submit, or tap the digit pad.
-4. A correct answer scores **+10 points** and loads the next puzzle.
-5. Stuck? Use a hint to reveal a five-number range. That puzzle is then worth **+5 points**.
-6. A wrong answer costs one of your **3 lives** and shows the correct digit.
-7. At zero lives the run ends and is saved. You can also press **End run** to save early.
-8. Check the **Scoreboard** tab to see the global rankings and your recent runs.
+1. Register a new account, or log in with an existing one.
+2. Start a run from the dashboard. The mission map shows mission 1 as available and the rest locked.
+3. Open a mission briefing, then enter the scene.
+4. Inspect the interactive objects. Security terminals open a Banana API cipher; useful objects add
+   supplies to the inventory.
+5. Enter a digit from 0 to 9 before the 45-second window closes.
+6. A correct answer scores **+10** and marks the terminal solved. A hint narrows the answer to a
+   five-number range but reduces that cipher to **+5**.
+7. A wrong answer or timeout costs one life. At zero lives the run ends as a loss.
+8. Complete both terminals in a mission to earn the mission bonus and unlock the next mission.
+9. Finish mission 5 to transmit the Last Signal and earn the victory bonus.
+10. Review your position on the leaderboard, browse public survivor files, and read your full run
+    history.
 
-Runs are saved in PostgreSQL, so you can close the browser and continue the same run later.
+Progress is stored in PostgreSQL, so you can close the browser and continue the same active run
+later. Starting a new run explicitly abandons the current one, and the abandoned run stays in
+history.
 
 ## API reference
 
 All endpoints return JSON. Protected routes require an `Authorization: Bearer <token>` header.
 
-| Method | Endpoint                 | Auth | Description                                                    |
-| ------ | ------------------------ | ---- | -------------------------------------------------------------- |
-| GET    | `/api/health`            | No   | Health check.                                                  |
-| POST   | `/api/auth/register`     | No   | Create an account. Body: `username`, `email`, `password`, `confirmPassword`. |
-| POST   | `/api/auth/login`        | No   | Log in. Body: `identifier` (email or username), `password`.     |
-| GET    | `/api/auth/me`           | Yes  | Current user profile.                                          |
-| GET    | `/api/game/state`        | Yes  | Active run and open puzzle, creating them if needed.            |
-| POST   | `/api/game/answer`       | Yes  | Submit an answer. Body: `roundId`, `answer` (0–9).               |
-| POST   | `/api/game/hint`         | Yes  | Reveal a hint for a round. Body: `roundId`.                     |
-| POST   | `/api/game/restart`      | Yes  | End the current run and start a fresh one.                     |
-| GET    | `/api/scores/leaderboard`| Yes  | Global leaderboard with the current player's position.          |
-| GET    | `/api/scores/history`    | Yes  | The current player's recent finished runs.                     |
+| Method | Endpoint | Auth | Description |
+| ------ | -------- | ---- | ----------- |
+| GET | `/api/health` | No | Health check. |
+| POST | `/api/auth/register` | No | Create an account. Body: `username`, `email`, `password`, `confirmPassword`. |
+| POST | `/api/auth/login` | No | Log in. Body: `identifier` (email or username), `password`. |
+| GET | `/api/auth/me` | Yes | Current user profile, rank and stats. |
+| GET | `/api/game/state` | Yes | Active run, mission states, inventory, achievements and any open terminal. |
+| GET | `/api/game/missions` | Yes | The public mission catalogue. |
+| POST | `/api/game/start` | Yes | Start or continue a run. Body: `{ "mode": "new" }` to replace the active run. |
+| POST | `/api/game/missions/:missionNumber/start` | Yes | Enter a mission. |
+| POST | `/api/game/interact` | Yes | Inspect an object. Body: `missionNumber`, `objectiveKey`. |
+| POST | `/api/game/answer` | Yes | Answer a cipher. Body: `roundId`, `answer` (0–9). |
+| POST | `/api/game/hint` | Yes | Reveal a range hint for a round. Body: `roundId`. |
+| POST | `/api/game/timeout` | Yes | Report an expired cipher. Body: `roundId`. Idempotent. |
+| POST | `/api/game/restart` | Yes | Abandon the active run and start a fresh one. |
+| POST | `/api/game/abandon` | Yes | End the active run and keep it in history. |
+| GET | `/api/scores/leaderboard` | Yes | Paginated global leaderboard. Query: `page`, `pageSize`. |
+| GET | `/api/scores/me` | Yes | Career summary, rank progress, global placement and achievements. |
+| GET | `/api/scores/players/:username` | Yes | Public survivor file (case-insensitive, never exposes email). |
+| GET | `/api/scores/history` | Yes | Paginated run history. Query: `page`, `pageSize`. |
 
 ### Example requests
 
@@ -209,64 +269,101 @@ curl -X POST http://localhost:4000/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"identifier":"player1","password":"secret123"}'
 
-# Load a game (replace TOKEN with the token from register/login)
+# Load the active run (replace TOKEN with the token from register/login)
 curl http://localhost:4000/api/game/state \
   -H 'Authorization: Bearer TOKEN'
 ```
 
-The response to `/api/game/state` includes the puzzle `imageUrl` but **never the solution**. The
-solution stays in PostgreSQL and is only checked inside `POST /api/game/answer`.
+The cipher `imageUrl` is sent to the browser, but the solution is kept in PostgreSQL. It is only
+revealed after the round has been scored (and for a wrong answer, when the life is already lost).
 
 ### Answer response
 
-A correct answer returns `correct: true`, the points awarded, the updated game, and the next
-puzzle. A wrong answer returns `correct: false`, the `correctAnswer`, the updated game, and either
-the next puzzle or `gameOver: true` when lives reach zero.
+A correct answer returns `correct: true`, the points awarded, the updated game and the next round
+state. A wrong answer returns `correct: false`, the correct digit, the updated game and either the
+next round or `gameOver: true`. An expired answer returns `expired: true` and costs a life; repeating
+the same timeout cannot deduct a second life. Answering an already-closed round returns HTTP `409`.
 
 ## Database design
 
-| Table    | Purpose                                                                 |
-| -------- | ----------------------------------------------------------------------- |
-| `users`  | Account details, password hash, and aggregate stats (`best_score`, `total_score`, `best_streak`, `games_played`). |
-| `games`  | One row per run: score, lives, streak, correct answers, status.          |
-| `rounds` | One row per puzzle: image URL, solution, hint state, and answer status.  |
+| Table | Purpose |
+| ----- | ------- |
+| `users` | Account details, password hash and aggregate stats (`best_score`, `total_score`, `best_streak`, `games_played`). |
+| `games` | One row per run: score, lives, streak, mission progress, status and outcome. |
+| `rounds` | One row per cipher: image URL, solution, timer, hint state, answer and points. |
+| `game_missions` | Per-run mission states (`locked`, `available`, `in_progress`, `completed`). |
+| `game_resources` | Supplies recovered during a run. |
+| `user_achievements` | Unlocked badges, unique per user. |
+| `game_events` | Audit trail of starts, answers, hints, losses and outcomes. |
+| `schema_migrations` | Applied migration filenames. |
 
-Indexes enforce two rules at the database level:
+Indexes enforce the important invariants:
 
 - one active run per user (`games_one_active_per_user`),
-- one open puzzle per run (`rounds_one_open_per_game`).
+- one open cipher per run (`rounds_one_open_per_game`),
+- one mission row per run and mission number,
+- unique achievements per user.
 
-Deleting a user cascades to their games and rounds.
+Deleting a user cascades to their games, rounds, resources, events and achievements.
+
+## Testing
+
+The integration test starts its own API process, creates a throwaway survivor, and seeds cipher
+rounds directly with known solutions — so it does not depend on the external Banana API and is
+fully repeatable.
+
+```bash
+npm run test:integration
+```
+
+By default the test API runs on port **4111** (separate from the dev server). Override it if needed:
+
+```bash
+TEST_PORT=4120 npm run test:integration
+```
+
+The suite covers the perfect victory path, every scoring rule, hints, wrong answers, timeout
+idempotency, duplicate-answer rejection, all seven achievements, mission progression, abandoned and
+lost runs, history, career summaries, public profiles, leaderboard pagination, invalid input and
+unauthenticated access. The test deletes its user and runs before exiting.
+
+The client can also be built as a syntax and production check:
+
+```bash
+npm run build
+```
 
 ## Available scripts
 
-| Command            | Description                                              |
-| ------------------ | -------------------------------------------------------- |
-| `npm run dev`      | Run the API and Vite dev server together.                |
-| `npm run dev:server` | Run only the Express API with file watching.           |
-| `npm run dev:client` | Run only the Vite frontend.                            |
-| `npm run build`    | Build the React client into `client/dist`.               |
-| `npm start`        | Start Express (serves the built client if it exists).    |
-| `npm run db:setup` | Create the database and apply the schema.                |
-| `npm run db:seed`  | Add the optional demo accounts.                          |
+| Command | Description |
+| ------- | ----------- |
+| `npm run dev` | Run the API and Vite dev server together. |
+| `npm run dev:server` | Run only the Express API with file watching. |
+| `npm run dev:client` | Run only the Vite frontend. |
+| `npm run build` | Build the React client into `client/dist`. |
+| `npm start` | Start Express (serves the built client if it exists). |
+| `npm run db:setup` | Create the database and apply the schema and migrations. |
+| `npm run test:integration` | Run the end-to-end API integration suite. |
 
 ## Security notes
 
 - Passwords are hashed with bcrypt; plain-text passwords are never stored.
 - JWT secrets and database credentials live in `server/.env`, which is git-ignored.
 - Auth routes are rate-limited separately from gameplay routes.
-- CORS only allows origins listed in `CLIENT_ORIGIN`.
-- The puzzle solution is never sent to the browser before the player answers.
-- Helmet sets a content security policy that permits puzzle images from HTTPS sources.
+- CORS only allows the configured origins, plus same-origin requests when Express serves the build.
+- The cipher solution is never sent to the browser before the player answers.
+- Scoring, lives, timers and rewards are decided by the server, not the client.
+- Public profiles expose usernames and survival stats only — never email addresses.
+- Helmet sets a content security policy that permits cipher images from HTTPS sources.
 
-This project is intended for coursework. For a real deployment, use HTTPS, a managed database,
-a long random JWT secret, and rotate secrets regularly.
+This project is intended for coursework. For a real deployment, use HTTPS, a managed database, a
+long random JWT secret, and rotate secrets regularly.
 
 ## Troubleshooting
 
 **`ECONNREFUSED` or “Cannot reach the server”**
-Make sure PostgreSQL is running (`brew services start postgresql` on macOS) and that
-`DATABASE_URL` points to the right host and port.
+Make sure PostgreSQL is running (`brew services start postgresql` on macOS) and that `DATABASE_URL`
+points to the right host and port.
 
 **`database "banana_game" does not exist`**
 Run `npm run db:setup`.
@@ -274,15 +371,16 @@ Run `npm run db:setup`.
 **“That username is already taken”**
 Usernames and emails are unique. Log in instead, or choose another username.
 
-**Puzzle image does not load**
+**Cipher image does not load**
 The UOB Banana API must be reachable from the server. Check `BANANA_API_URL` and your network
-connection, then reload the puzzle.
+connection. The server keeps a small warm cache and retries before returning a friendly 503.
 
 **Port already in use**
 Change `PORT` in `server/.env`, and update the Vite proxy target in `client/vite.config.js` to
-match.
+match. The integration test uses its own dedicated port and does not conflict with the dev server.
 
 ## Credits
 
-- Puzzle images and solutions: [UOB Banana API](https://marcconrad.com/uob/banana/api.php)
-- Built with React, Vite, Express, and PostgreSQL.
+- Cipher images and solutions: [UOB Banana API](https://marcconrad.com/uob/banana/api.php)
+- Story, mission design and interface: built for this project
+- Built with React, Vite, Express and PostgreSQL
