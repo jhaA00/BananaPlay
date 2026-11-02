@@ -20,6 +20,7 @@ import {
   syncObjectiveStates,
 } from './world-state.js';
 import { finishMission, interact as requestTerminalRound, loadGameState } from './game.js';
+import { publicGame, publicUser } from '../utils/presenters.js';
 
 const VALID_FACING = new Set(['up', 'down', 'left', 'right']);
 const PLAYER_RADIUS = 14;
@@ -91,6 +92,10 @@ async function prepareContext(client, userId, missionNumber, objectKey = null) {
     missionStatus: missionRow.status,
     userId,
   });
+
+  // Discovery and availability depend on the saved area, objectives and pack.
+  await syncObjectiveStates(client, game.id, missionNumber);
+  await syncObjectStates(client, game.id, missionNumber);
 
   const snapshot = await loadWorldSnapshot(client, game.id, missionNumber);
   const object = objectKey ? getWorld(missionNumber)?.objectMap.get(objectKey) ?? null : null;
@@ -373,6 +378,7 @@ export async function interactWithObject(userId, missionNumber, objectKey) {
         });
       }
       const completion = await finishMission(client, userId, game, missionNumber);
+      if (completion) missionRow.status = 'completed';
 
       return {
         kind: 'exit',
@@ -388,8 +394,8 @@ export async function interactWithObject(userId, missionNumber, objectKey) {
               unlockedMission: completion.unlockedMission,
             }
           : null,
-        game: completion?.game ?? null,
-        user: completion?.user ?? null,
+        game: completion?.game ? publicGame(completion.game) : null,
+        user: completion?.user ? publicUser(completion.user) : null,
         achievements: completion?.achievements ?? [],
         world: await buildWorldPayload(client, game, missionNumber, missionRow),
       };
@@ -489,6 +495,15 @@ export async function interactWithObject(userId, missionNumber, objectKey) {
  * passing the proximity and prerequisite checks in interactWithObject.
  */
 export async function openTerminal(userId, missionNumber, objectKey) {
+  // Validate the object before loading any game state. An unknown or
+  // non-terminal object must never open a cipher round, even when the player
+  // has no active run.
+  const definition = getWorld(missionNumber);
+  if (!definition) throw new ApiError(404, 'That location does not exist.');
+  if (!definition.objectMap.get(objectKey)?.terminal) {
+    throw new ApiError(400, 'That object is not a security terminal.');
+  }
+
   // Run the full validation and keep the puzzle request outside the transaction.
   const pending = await withTransaction(async (client) => {
     const { game, missionRow, snapshot, object } = await prepareContext(
@@ -498,10 +513,12 @@ export async function openTerminal(userId, missionNumber, objectKey) {
       objectKey,
     );
 
+    // Reject unknown or non-terminal objects before touching mission state, so
+    // a bad request can never consume a cipher round.
+    if (!object?.terminal) throw new ApiError(400, 'That object is not a security terminal.');
     if (missionRow.status === 'completed') {
       throw new ApiError(409, 'This location is already secure.');
     }
-    if (!object?.terminal) throw new ApiError(400, 'That object is not a security terminal.');
     if (object.areaKey !== snapshot.state.area_key) {
       throw new ApiError(
         409,
