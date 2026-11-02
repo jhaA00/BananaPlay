@@ -54,7 +54,7 @@ export const MISSIONS = [
           'Empty shelves and a single boot print in the dust. Someone left in a hurry — and they took the good batteries.',
       },
     ],
-    resources: [],
+    resources: [{ key: 'flashlight', label: 'Flashlight', quantity: 1 }],
   },
   {
     number: 2,
@@ -254,7 +254,7 @@ export const MISSIONS = [
           'The final log entry is short: "If anyone is listening — we are still here. Tower is operational. Repeat: we are still here."',
       },
     ],
-    resources: [],
+    resources: [{ key: 'equipment', label: 'Emergency Equipment', quantity: 1 }],
   },
 ];
 
@@ -263,11 +263,13 @@ export const TERMINALS_PER_MISSION = 2;
 export const PUZZLE_SECONDS = 45;
 
 export const RESOURCE_LABELS = {
+  flashlight: 'Flashlight',
   food: 'Food',
   medicine: 'Medicine',
   batteries: 'Batteries',
   fuel: 'Fuel',
   parts: 'Spare Parts',
+  equipment: 'Emergency Equipment',
 };
 
 const MISSION_BY_NUMBER = new Map(MISSIONS.map((mission) => [mission.number, mission]));

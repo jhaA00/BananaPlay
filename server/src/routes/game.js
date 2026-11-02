@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import {
   abandonRun,
-  interact,
   loadGameState,
   restartRun,
   startMission,
@@ -11,6 +10,14 @@ import {
   timeoutRound,
   useHint,
 } from '../services/game.js';
+import {
+  interactWithObject,
+  legacyInteract,
+  loadWorld,
+  markIntroSeen,
+  openTerminal,
+  savePosition,
+} from '../services/world.js';
 import { MISSION_COUNT, missionCatalog } from '../game/missions.js';
 import { ApiError, asyncHandler } from '../utils/http.js';
 
@@ -32,6 +39,14 @@ function parseRoundId(value) {
     throw new ApiError(400, 'A valid puzzle is required.');
   }
   return roundId;
+}
+
+function parseObjectKey(value) {
+  const objectKey = String(value ?? '').trim();
+  if (!/^[a-z0-9_]{3,64}$/.test(objectKey)) {
+    throw new ApiError(400, 'Choose a valid interactive object.');
+  }
+  return objectKey;
 }
 
 router.get(
@@ -61,17 +76,56 @@ router.post(
   }),
 );
 
+router.get(
+  '/missions/:missionNumber/world',
+  asyncHandler(async (req, res) => {
+    const missionNumber = parseMissionNumber(req.params.missionNumber);
+    res.json(await loadWorld(req.userId, missionNumber));
+  }),
+);
+
+router.post(
+  '/world/position',
+  asyncHandler(async (req, res) => {
+    const missionNumber = parseMissionNumber(req.body?.missionNumber);
+    res.json(await savePosition(req.userId, missionNumber, req.body));
+  }),
+);
+
+router.post(
+  '/world/intro',
+  asyncHandler(async (req, res) => {
+    const missionNumber = parseMissionNumber(req.body?.missionNumber);
+    res.json(await markIntroSeen(req.userId, missionNumber));
+  }),
+);
+
+router.post(
+  '/world/interact',
+  asyncHandler(async (req, res) => {
+    const missionNumber = parseMissionNumber(req.body?.missionNumber);
+    const objectKey = parseObjectKey(req.body?.objectKey);
+    res.json(await interactWithObject(req.userId, missionNumber, objectKey));
+  }),
+);
+
+router.post(
+  '/world/terminal',
+  asyncHandler(async (req, res) => {
+    const missionNumber = parseMissionNumber(req.body?.missionNumber);
+    const objectKey = parseObjectKey(req.body?.objectKey);
+    res.json(await openTerminal(req.userId, missionNumber, objectKey));
+  }),
+);
+
+// Retained for clients that have not switched to /world/interact yet. It now
+// runs the same proximity and prerequisite checks before creating a round.
 router.post(
   '/interact',
   asyncHandler(async (req, res) => {
     const missionNumber = parseMissionNumber(req.body?.missionNumber);
-    const objectiveKey = String(req.body?.objectiveKey ?? '').trim();
-
-    if (!/^[a-z0-9_]{3,64}$/.test(objectiveKey)) {
-      throw new ApiError(400, 'Choose a valid interactive object.');
-    }
-
-    res.json(await interact(req.userId, missionNumber, objectiveKey));
+    const objectiveKey = parseObjectKey(req.body?.objectiveKey);
+    res.json(await legacyInteract(req.userId, missionNumber, objectiveKey));
   }),
 );
 
