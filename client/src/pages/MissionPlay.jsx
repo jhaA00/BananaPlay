@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import RankBadge from '../components/RankBadge.jsx';
-import MissionScene from '../components/MissionScene.jsx';
+import ExplorationScene from '../components/exploration/ExplorationScene.jsx';
+import StoryIntro from '../components/exploration/StoryIntro.jsx';
 import Modal from '../components/Modal.jsx';
 import SecurityTerminal from '../components/SecurityTerminal.jsx';
 import SurvivalHud from '../components/SurvivalHud.jsx';
@@ -35,8 +36,15 @@ export default function MissionPlay() {
   const [toast, setToast] = useState(null);
   const [actionError, setActionError] = useState('');
   const [boardMe, setBoardMe] = useState(null);
+  const [world, setWorld] = useState(null);
+  const [worldLoading, setWorldLoading] = useState(false);
+  const [worldError, setWorldError] = useState('');
+  const [worldReloadKey, setWorldReloadKey] = useState(0);
+  const [introOpen, setIntroOpen] = useState(false);
+  const [introBusy, setIntroBusy] = useState(false);
 
   const mission = state?.missions?.find((item) => item.number === Number(missionNumber));
+  const missionNumberValue = Number(missionNumber);
 
   useEffect(() => {
     if (!state || endGame) return;
@@ -48,6 +56,32 @@ export default function MissionPlay() {
       navigate('/missions', { replace: true });
     }
   }, [state, endGame, mission?.status, navigate]);
+
+  useEffect(() => {
+    if (!mission || !state?.game) return undefined;
+    let cancelled = false;
+
+    async function loadWorld() {
+      setWorldLoading(true);
+      setWorldError('');
+      try {
+        const data = await api(`/game/missions/${missionNumberValue}/world`);
+        if (cancelled) return;
+        setWorld(data.world);
+        if (data.state) setState(data.state);
+        setIntroOpen(Boolean(data.world?.state && !data.world.state.introSeen && data.world.missionStatus !== 'completed'));
+      } catch (requestError) {
+        if (!cancelled) setWorldError(requestError.message);
+      } finally {
+        if (!cancelled) setWorldLoading(false);
+      }
+    }
+
+    loadWorld();
+    return () => {
+      cancelled = true;
+    };
+  }, [missionNumberValue, state?.game?.id, setState, worldReloadKey]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -71,19 +105,52 @@ export default function MissionPlay() {
     });
   }
 
-  async function openTerminal(object) {
+  async function refreshWorld() {
+    try {
+      const data = await api(`/game/missions/${missionNumberValue}/world`);
+      if (data.world) setWorld(data.world);
+      if (data.state) setState(data.state);
+      return data.world;
+    } catch (requestError) {
+      setActionError(requestError.message);
+      return null;
+    }
+  }
+
+  function saveWorldPosition(position) {
+    api('/game/world/position', {
+      method: 'POST',
+      body: { missionNumber: missionNumberValue, ...position },
+    }).catch(() => {});
+  }
+
+  async function beginMission() {
+    setIntroBusy(true);
+    try {
+      await api('/game/world/intro', {
+        method: 'POST',
+        body: { missionNumber: missionNumberValue },
+      });
+    } catch {
+      // The intro is presentation only; never block the mission on it.
+    } finally {
+      setIntroBusy(false);
+      setIntroOpen(false);
+    }
+  }
+
+  async function handleWorldInteract(object) {
+    if (busyKey) return;
     setActionError('');
     setBusyKey(object.key);
     try {
-      const data = await api('/game/interact', {
+      const data = await api('/game/world/interact', {
         method: 'POST',
-        body: {
-          missionNumber: Number(missionNumber),
-          objectiveKey: object.key,
-        },
+        body: { missionNumber: missionNumberValue, objectKey: object.key },
       });
 
-      setState(data.state);
+      if (data.state) setState(data.state);
+      if (data.world) setWorld(data.world);
 
       if (data.gameOver) {
         setTerminal(null);
@@ -98,8 +165,46 @@ export default function MissionPlay() {
         });
       }
 
-      if (data.round) {
+      if (data.kind === 'terminal' && data.round) {
         setTerminal({ round: data.round, result: null, feedback: null, resolved: false });
+        return;
+      }
+
+      if (data.kind === 'exit') {
+        setTerminal(null);
+        if (data.missionCompleted) {
+          setMissionResult({
+            ...data.missionCompleted,
+            score: data.state?.game?.score ?? data.game?.score ?? 0,
+            achievements: data.achievements ?? [],
+          });
+          showAchievements(data.achievements);
+        }
+        if (data.missionCompleted?.victory) {
+          setEndGame(
+            endPayload({ game: data.game, user: data.user, state: data.state, fallbackOutcome: 'won' }),
+          );
+        }
+        return;
+      }
+
+      if (data.kind === 'note') {
+        setFlavor({ label: object.label, text: data.text });
+        return;
+      }
+
+      if (data.kind === 'pickup') {
+        setToast({ title: 'Pack updated', lines: [data.message] });
+        return;
+      }
+
+      if (data.kind === 'action') {
+        setToast({ title: object.label, lines: [data.message] });
+        return;
+      }
+
+      if (data.kind === 'transition' && data.message) {
+        setToast({ title: 'Route open', lines: [data.message] });
       }
     } catch (requestError) {
       setActionError(requestError.message);
@@ -166,14 +271,8 @@ export default function MissionPlay() {
           },
         }));
 
-        if (data.missionCompleted) {
-          setTerminal(null);
-          setMissionResult({
-            ...data.missionCompleted,
-            score: data.state?.game?.score ?? data.game?.score ?? 0,
-            achievements: data.achievements ?? [],
-          });
-        }
+        // The object, objective tracker and power state changed on the server.
+        await refreshWorld();
         return;
       }
 
@@ -273,7 +372,35 @@ export default function MissionPlay() {
   async function retryTerminal() {
     const objectiveKey = terminal?.round?.objectiveKey;
     setTerminal(null);
-    if (objectiveKey) await openTerminal({ key: objectiveKey });
+    if (!objectiveKey) return;
+
+    setBusyKey(objectiveKey);
+    setActionError('');
+    try {
+      const data = await api('/game/world/terminal', {
+        method: 'POST',
+        body: { missionNumber: missionNumberValue, objectKey: objectiveKey },
+      });
+      if (data.state) setState(data.state);
+      if (data.world) setWorld(data.world);
+      if (data.gameOver) {
+        setEndGame(endPayload({ game: data.game, state: data.state, fallbackOutcome: 'lost' }));
+        return;
+      }
+      if (data.lifeLost) {
+        setToast({
+          title: 'Cipher window expired',
+          lines: ['One life lost. A new security cipher is ready.'],
+        });
+      }
+      if (data.round) {
+        setTerminal({ round: data.round, result: null, feedback: null, resolved: false });
+      }
+    } catch (requestError) {
+      setActionError(requestError.message);
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   async function startFreshRun() {
@@ -291,6 +418,9 @@ export default function MissionPlay() {
       setBusy(false);
     }
   }
+
+  const sceneActive = Boolean(world) && !terminal && !flavor && !introOpen && !missionResult && !endGame;
+  const missionComplete = mission?.status === 'completed';
 
   if (loading && !state) {
     return (
@@ -358,13 +488,35 @@ export default function MissionPlay() {
         />
       )}
 
-      <MissionScene
-        mission={mission}
-        onTerminal={openTerminal}
-        onFlavor={setFlavor}
-        busyKey={busyKey}
-        disabled={mission.status === 'completed'}
-      />
+      {worldLoading && !world && (
+        <div className="ls-explore-loading">
+          <Spinner /> <span>Mapping the location…</span>
+        </div>
+      )}
+
+      {worldError && !world && (
+        <div className="ls-alert is-error" role="alert">
+          <span>{worldError}</span>
+          <button
+            type="button"
+            className="ls-link-btn"
+            onClick={() => setWorldReloadKey((key) => key + 1)}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {world && (
+        <ExplorationScene
+          mission={mission}
+          world={world}
+          active={sceneActive && !missionComplete}
+          busy={Boolean(busyKey) || terminal !== null}
+          onInteract={handleWorldInteract}
+          onPosition={saveWorldPosition}
+        />
+      )}
 
       {mission.status === 'completed' && !endGame && (
         <div className="ls-scene-complete">
@@ -375,6 +527,10 @@ export default function MissionPlay() {
             Back to the mission map
           </Link>
         </div>
+      )}
+
+      {introOpen && world && (
+        <StoryIntro mission={mission} world={world} busy={introBusy} onBegin={beginMission} />
       )}
 
       {terminal && (

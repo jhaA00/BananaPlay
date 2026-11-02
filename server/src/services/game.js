@@ -9,6 +9,8 @@ import {
   getTerminal,
   missionCatalog,
 } from '../game/missions.js';
+import { getWorldObjectives } from '../game/worlds.js';
+import { markTerminalSolved, ensureWorldRows } from './world-state.js';
 import { rankForScore } from '../game/ranks.js';
 import { evaluateAchievements, loadAchievements } from '../game/achievements.js';
 
@@ -154,7 +156,9 @@ function buildMissions(missionRows, solvedMap) {
   return missionCatalog().map((mission) => {
     const row = byNumber.get(mission.number);
     const solvedObjectives = solvedMap.get(mission.number) ?? [];
-    const completed = row?.status === 'completed' || solvedObjectives.length >= mission.terminals.length;
+    // Mission completion is an explicit server-side event (reaching the exit),
+    // never a side effect of counting solved terminals.
+    const completed = row?.status === 'completed';
 
     return {
       ...mission,
@@ -276,7 +280,12 @@ async function loseLife(client, userId, game) {
   return { game: finalized.finished ?? updated, gameOver: true, user: finalized.user };
 }
 
-async function missionCompletion(client, userId, game, missionNumber, unlocked) {
+/**
+ * Completes a mission after the player reaches its physical exit and every
+ * required objective is complete. Must be called inside a transaction that
+ * already holds a lock on the game row.
+ */
+export async function finishMission(client, userId, game, missionNumber) {
   const mission = getMission(missionNumber);
   if (!mission) return null;
 
@@ -285,24 +294,29 @@ async function missionCompletion(client, userId, game, missionNumber, unlocked) 
     [game.id, missionNumber],
   );
 
-  if (missionRows[0]?.status === 'completed') return null;
+  if (!missionRows[0]) throw new ApiError(409, 'This mission has not been started.');
+  if (missionRows[0].status === 'completed') return null;
 
-  const { rows: countRows } = await client.query(
-    `SELECT COUNT(DISTINCT objective_key)::int AS solved
-       FROM rounds
-      WHERE game_id = $1 AND mission_number = $2 AND status = 'correct'`,
+  const { rows: objectiveRows } = await client.query(
+    `SELECT objective_key FROM game_objectives
+      WHERE game_id = $1 AND mission_number = $2 AND status = 'completed'`,
     [game.id, missionNumber],
   );
+  const completed = new Set(objectiveRows.map((row) => row.objective_key));
+  const missing = getWorldObjectives(missionNumber).filter(
+    (objective) => !completed.has(objective.key),
+  );
 
-  if ((countRows[0]?.solved ?? 0) < mission.terminals.length) return null;
+  if (missing.length > 0) {
+    throw new ApiError(409, `Complete the remaining objectives: ${missing.map((item) => item.label).join(', ')}.`);
+  }
 
   await client.query(
-    `INSERT INTO game_missions (game_id, mission_number, status, started_at, completed_at)
-     VALUES ($1, $2, 'completed', now(), now())
-     ON CONFLICT (game_id, mission_number)
-     DO UPDATE SET status = 'completed',
-                   completed_at = now(),
-                   started_at = COALESCE(game_missions.started_at, now())`,
+    `UPDATE game_missions
+        SET status = 'completed',
+            completed_at = now(),
+            started_at = COALESCE(started_at, now())
+      WHERE game_id = $1 AND mission_number = $2`,
     [game.id, missionNumber],
   );
 
@@ -332,31 +346,12 @@ async function missionCompletion(client, userId, game, missionNumber, unlocked) 
 
   let updated = updatedRows[0];
 
-  for (const resource of mission.resources) {
-    await client.query(
-      `INSERT INTO game_resources (game_id, resource_key, quantity)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (game_id, resource_key)
-       DO UPDATE SET quantity = game_resources.quantity + EXCLUDED.quantity`,
-      [game.id, resource.key, resource.quantity],
-    );
-  }
-
   await logEvent(client, {
     userId,
     gameId: game.id,
     type: 'mission_completed',
-    payload: { missionNumber, bonus: MISSION_BONUS, resources: mission.resources },
+    payload: { missionNumber, bonus: MISSION_BONUS },
   });
-
-  for (const resource of mission.resources) {
-    await logEvent(client, {
-      userId,
-      gameId: game.id,
-      type: 'resource_collected',
-      payload: { key: resource.key, quantity: resource.quantity },
-    });
-  }
 
   const achievements = await evaluateAchievements(client, {
     userId,
@@ -722,47 +717,39 @@ export async function submitAnswer(userId, roundId, answer) {
         payload: { roundId, points, missionNumber: round.mission_number, objectiveKey: round.objective_key },
       });
 
-      const completion =
-        round.mission_number !== null
-          ? await missionCompletion(client, userId, game, Number(round.mission_number))
-          : null;
-
-      if (completion) {
-        game = completion.game;
-        achievements.push(...completion.achievements);
-      }
-
-      if (completion?.user) user = completion.user;
-
-      if (completion?.victory) {
-        gameOver = true;
-      } else {
-        const earned = await evaluateAchievements(client, {
+      // A correct cipher unlocks the object and marks its objective complete.
+      // Mission completion itself requires the player to reach the exit.
+      if (round.mission_number !== null) {
+        await ensureWorldRows(client, {
+          gameId: game.id,
+          missionNumber: Number(round.mission_number),
+          missionStatus: 'in_progress',
           userId,
-          game,
-          missionNumber: null,
         });
-        achievements.push(...earned);
+        await markTerminalSolved(client, {
+          gameId: game.id,
+          missionNumber: Number(round.mission_number),
+          objectiveKey: round.objective_key,
+          userId,
+        });
       }
+
+      const earned = await evaluateAchievements(client, {
+        userId,
+        game,
+        missionNumber: null,
+      });
+      achievements.push(...earned);
 
       return {
         expired: false,
         correct: true,
         points,
         correctAnswer: round.solution,
-        missionCompleted: completion
-          ? {
-              number: completion.mission.number,
-              title: completion.mission.title,
-              bonus: completion.bonus,
-              resources: completion.mission.resources,
-              victory: completion.victory,
-              victoryBonus: completion.victoryBonus,
-              unlockedMission: completion.unlockedMission,
-            }
-          : null,
+        missionCompleted: null,
+        terminalSolved: true,
         lifeLost: false,
-        gameOver,
+        gameOver: false,
         game,
         user,
         achievements,

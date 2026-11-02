@@ -147,15 +147,134 @@ async function solveRound({ missionNumber, objectiveKey, solution, hint = false 
   return api('/game/answer', { method: 'POST', body: { roundId, answer: solution } });
 }
 
+// Each mission is played through the real world endpoints. Terminal ciphers are
+// seeded so this suite never depends on the live Banana API.
+const WORLD_PLANS = {
+  1: [
+    ['dormitory', 'flashlight', 300, 330, 'interact'],
+    ['dormitory', 'maintenance_log', 620, 330, 'interact'],
+    ['dormitory', 'to_corridor', 1052, 315, 'interact'],
+    ['corridor', 'to_power_room', 1052, 315, 'interact'],
+    ['power_room', 'exit_lock', 680, 300, 'expect409'],
+    ['power_room', 'backup_power', 300, 330, 'terminal'],
+    ['power_room', 'exit_lock', 680, 300, 'terminal'],
+    ['power_room', 'to_airlock', 1052, 315, 'interact'],
+    ['airlock', 'shelter_exit', 1010, 315, 'exit'],
+  ],
+  2: [
+    ['street', 'overturned_bus', 430, 315, 'interact'],
+    ['street', 'notice_board', 820, 300, 'interact'],
+    ['street', 'to_market', 1052, 315, 'interact'],
+    ['market', 'food_container', 430, 315, 'terminal+pickup'],
+    ['market', 'medical_locker', 730, 315, 'terminal+pickup'],
+    ['market', 'to_extraction', 1052, 315, 'interact'],
+    ['extraction', 'extraction_point', 1010, 315, 'exit'],
+  ],
+  3: [
+    ['gate', 'maintenance_log', 450, 315, 'interact'],
+    ['gate', 'to_turbine', 1052, 315, 'interact'],
+    ['turbine_hall', 'to_generator', 1052, 315, 'expect409'],
+    ['turbine_hall', 'fuel_canister', 620, 315, 'interact'],
+    ['turbine_hall', 'to_generator', 1052, 315, 'interact'],
+    ['generator_room', 'generator_control', 700, 220, 'expect409'],
+    ['generator_room', 'generator', 520, 315, 'interact'],
+    ['generator_room', 'generator_control', 700, 220, 'terminal'],
+    ['generator_room', 'grid_breaker', 900, 315, 'terminal'],
+    ['generator_room', 'leave_substation', 1020, 500, 'exit'],
+  ],
+  4: [
+    ['lobby', 'operator_desk', 430, 315, 'interact'],
+    ['lobby', 'to_server', 1052, 315, 'interact'],
+    ['server_room', 'damaged_console', 420, 315, 'expect409'],
+    ['server_room', 'back_to_lobby', 68, 315, 'interact'],
+    ['lobby', 'spare_parts', 780, 220, 'interact'],
+    ['lobby', 'to_server', 1052, 315, 'interact'],
+    ['server_room', 'damaged_console', 420, 315, 'interact'],
+    ['server_room', 'network_decoder', 700, 315, 'terminal'],
+    ['server_room', 'to_control', 1052, 315, 'interact'],
+    ['control_room', 'transmission_console', 300, 315, 'terminal'],
+    ['control_room', 'network_uplink', 600, 315, 'interact'],
+    ['control_room', 'leave_centre', 1020, 500, 'exit'],
+  ],
+  5: [
+    ['tower_gate', 'message_log', 430, 315, 'interact'],
+    ['tower_gate', 'to_control', 1052, 315, 'expect409'],
+    ['tower_gate', 'emergency_equipment', 780, 250, 'interact'],
+    ['tower_gate', 'to_control', 1052, 315, 'interact'],
+    ['control_room', 'tower_console', 420, 315, 'terminal'],
+    ['control_room', 'final_authorization', 700, 315, 'terminal'],
+    ['control_room', 'to_antenna', 1052, 315, 'interact'],
+    ['antenna_deck', 'transmitter', 520, 315, 'exit'],
+  ],
+};
+
 async function runMission(missionNumber, terminals) {
   const started = await api(`/game/missions/${missionNumber}/start`, { method: 'POST' });
   assert.equal(started.status, 200, `mission ${missionNumber} start failed`);
 
+  const loaded = await api(`/game/missions/${missionNumber}/world`);
+  assert.equal(loaded.status, 200, `mission ${missionNumber} world failed`);
+  let area = loaded.data.world.state.areaKey;
   let last = null;
-  for (const terminal of terminals) {
-    last = await solveRound({ missionNumber, ...terminal });
-    assert.equal(last.status, 200, `mission ${missionNumber} terminal failed`);
+
+  for (const step of WORLD_PLANS[missionNumber]) {
+    const [stepArea, objectKey, x, y, type] = step;
+    const moved = await api('/game/world/position', {
+      method: 'POST',
+      body: { missionNumber, areaKey: area, x, y, facing: 'down' },
+    });
+    assert.equal(moved.status, 200, `move to ${objectKey} failed`);
+
+    if (type === 'terminal') {
+      last = await solveRound({
+        missionNumber,
+        objectiveKey: objectKey,
+        solution: terminals[objectKey],
+        hint: terminals[`${objectKey}_hint`] === true,
+      });
+      assert.equal(last.status, 200, `terminal ${objectKey} failed`);
+      continue;
+    }
+
+    if (type === 'terminal+pickup') {
+      const solved = await solveRound({
+        missionNumber,
+        objectiveKey: objectKey,
+        solution: terminals[objectKey],
+      });
+      assert.equal(solved.status, 200, `terminal ${objectKey} failed`);
+      last = await api('/game/world/interact', {
+        method: 'POST',
+        body: { missionNumber, objectKey },
+      });
+      assert.equal(last.status, 200, `pickup from ${objectKey} failed`);
+      continue;
+    }
+
+    const result = await api('/game/world/interact', {
+      method: 'POST',
+      body: { missionNumber, objectKey },
+    });
+
+    if (type === 'expect409') {
+      check(`${missionNumber} ${objectKey} is gated`, result.status === 409, JSON.stringify(result.data));
+      continue;
+    }
+
+    assert.equal(result.status, 200, `interaction with ${objectKey} failed: ${JSON.stringify(result.data)}`);
+    last = result;
+
+    if (type === 'exit') {
+      check(
+        `mission ${missionNumber} completes only at the physical exit`,
+        result.data.kind === 'exit' && result.data.missionCompleted?.number === missionNumber,
+        JSON.stringify(result.data).slice(0, 300),
+      );
+    } else if (result.data.kind === 'transition') {
+      area = result.data.areaKey;
+    }
   }
+
   return last;
 }
 
@@ -207,42 +326,33 @@ try {
   });
   check('login accepts a case-insensitive username', login.status === 200 && Boolean(login.data.token));
 
-  section('perfect victory');
+  section('victory with one hint');
 
   const start = await api('/game/start', { method: 'POST', body: { mode: 'new' } });
   check('new run starts with three lives and zero score', start.data.game?.lives === 3 && start.data.game?.score === 0);
   check('mission catalogue exposes five missions', start.data.missions?.length === 5);
 
-  const missionTerminals = [
-    ['backup_power', 'exit_lock'],
-    ['food_container', 'medical_locker'],
-    ['generator_control', 'grid_breaker'],
-    ['transmission_console', 'network_decoder'],
-    ['tower_console', 'final_authorization'],
+  const missionCiphers = [
+    { backup_power: 2, exit_lock: 3, backup_power_hint: true },
+    { food_container: 4, medical_locker: 5 },
+    { generator_control: 6, grid_breaker: 7 },
+    { transmission_console: 8, network_decoder: 9 },
+    { tower_console: 0, final_authorization: 1 },
   ];
 
   let answer = null;
-  for (let missionNumber = 0; missionNumber < missionTerminals.length; missionNumber += 1) {
-    const terminals = missionTerminals[missionNumber].map((key, index) => ({
-      objectiveKey: key,
-      solution: (missionNumber + index + 2) % 10,
-      // One hinted cipher in mission 1 keeps the average score path covered.
-      hint: missionNumber === 0 && index === 0,
-    }));
-    answer = await runMission(missionNumber + 1, terminals);
-
-    if (missionNumber < 4) {
-      check(
-        `mission ${missionNumber + 1} completes with a +100 bonus`,
-        answer.data.missionCompleted?.bonus === 100,
-        JSON.stringify(answer.data.missionCompleted),
-      );
-    }
+  for (let missionNumber = 0; missionNumber < missionCiphers.length; missionNumber += 1) {
+    answer = await runMission(missionNumber + 1, missionCiphers[missionNumber]);
+    check(
+      `mission ${missionNumber + 1} awards the +100 mission bonus`,
+      answer.data.missionCompleted?.bonus === 100,
+      JSON.stringify(answer.data.missionCompleted),
+    );
   }
 
   check('final mission reports victory and a +250 bonus', answer.data.missionCompleted?.victory === true && answer.data.missionCompleted?.victoryBonus === 250);
-  check('perfect run finishes with 845 points', answer.data.game?.score === 845, String(answer.data.game?.score));
-  check('perfect run keeps all three lives', answer.data.game?.lives === 3);
+  check('hinted victory finishes with 845 points', answer.data.game?.score === 845, String(answer.data.game?.score));
+  check('hinted victory keeps all three lives', answer.data.game?.lives === 3);
   check('victory is persisted', answer.data.game?.outcome === 'won');
 
   const stateAfterVictory = await api('/game/state');
